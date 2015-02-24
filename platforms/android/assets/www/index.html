@@ -1,0 +1,155 @@
+<script src="cordova.js"></script>
+<script type="text/javascript" >
+   var myService;
+
+   document.addEventListener('deviceready', function() {
+      var serviceName = 'com.red_folder.phonegap.plugin.backgroundservice.AMService';
+      var factory = cordova.require('com.red_folder.phonegap.plugin.backgroundservice.BackgroundService');
+      myService = factory.create(serviceName);
+	  
+      go();
+   }, true);
+   
+   function getStatus() {
+      myService.getStatus(function(r){displayResult(r)}, function(e){displayError(e)});
+   }
+
+   function displayResult(data) {
+      alert("Is service running: " + data.ServiceRunning);
+   }
+
+   function displayError(data) {
+      alert("We have an error");
+   }
+   
+   function updateHandler(data) {
+	if (data.LatestResult != null) {
+      try {
+         var resultMessage = document.getElementById("resultMessage");
+		 resultMessage.innerHTML =
+			"Error: " + data.LatestResult.error + "<br />" +
+			"Recording: " + data.LatestResult.recording + "<br />" +
+			"Record time: " + data.LatestResult.time + "<br />" +
+			"[X = " + data.LatestResult.X + " * " +
+			"Y = " + data.LatestResult.Y + " * " +
+			"Z = " + data.LatestResult.Z + "]";
+		
+		 var dataElement = document.getElementById("data");
+		 if(data.Configuration.records == 1) {
+			var i, table = "<table bordrer='1'><tr><th>Id</th><th>Time</th><th>X</th><th>Y</th><th>Z</th></tr>";
+			for(i=0; ; i++) {
+				if(!data.Configuration['id' + i])
+					break;
+				table += "<tr>";
+				table += "<td>" + data.Configuration['id' + i] + "</td>";
+				table += "<td>" + data.Configuration['time' + i] + "</td>";
+				table += "<td>" + Math.round(data.Configuration['x' + i] * 100) / 100 + "</td>";
+				table += "<td>" + Math.round(data.Configuration['y' + i] * 100) / 100 + "</td>";
+				table += "<td>" + Math.round(data.Configuration['z' + i] * 100) / 100 + "</td>";
+				table += "</tr>";
+			}
+			table += "</table>";
+			dataElement.innerHTML = table;
+			
+			// Stop reading data from service
+			var config = { 'dataread': 0 };
+			myService.setConfiguration(config,function(r) {}, function(r) {});
+		 }
+      } catch (err) {
+      }
+	}
+   }
+
+	function go() {
+		myService.getStatus(function(r){startService(r)}, function(e){displayError(e)});
+	};
+
+function startService(data) {
+   if (data.ServiceRunning) {
+      enableTimer(data);
+   } else {
+      myService.startService(function(r){enableTimer(r)}, function(e){displayError(e)});
+   }
+}
+
+/*
+function enableTimer(data) {
+   if (data.TimerEnabled) {
+      registerForUpdates(data);
+   } else {
+      myService.enableTimer(1000, function(r){registerForUpdates(r)}, function(e){displayError(e)});
+   }
+}
+*/
+
+   function enableTimer(data) {
+      if (data.TimerEnabled)
+         registerForBootStart(data);
+      else
+         myService.enableTimer( 60000,
+                                                    function(r){ registerForBootStart(r) },
+                                                    function(e){ alert('An error has occurred in enableTimer') });
+    }
+    
+    function registerForBootStart(data) {
+       if (data.RegisteredForBootStart)
+          //alert('Service started, timer enabled and service registered for Boot start');
+		  registerForUpdates(data);
+       else
+          myService.registerForBootStart( function(r){ alert('Service started, timer enabled and service registered for Boot start') },
+                                                              function(e){ alert('An error has occurred in registerForBootStart') });
+    }
+
+
+function registerForUpdates(data) {
+   if (!data.RegisteredForUpdates) {
+      myService.registerForUpdates(function(r){updateHandler(r)}, function(e){handleError(e)});
+   }
+}
+
+function restartTimer(ms) {
+	myService.disableTimer();
+	myService.enableTimer(ms, function(r){registerForUpdates(r)}, function(e){displayError(e)});
+}
+
+function startRecording() {
+	var config = { 'recording': 1 };
+	myService.setConfiguration(config,function(r) {}, function(r) {});
+}
+
+function stopRecording() {
+	var config = { 'recording': 0 };
+	myService.setConfiguration(config,function(r) {}, function(r) {});
+}
+
+function getData() {
+	var config = { 'dataread': 1 };
+	myService.setConfiguration(config,function(r) {}, function(r) {});
+}
+
+function clearData() {
+	var config = { 'dataclear': 1 };
+	myService.setConfiguration(config,function(r) {}, function(r) {});
+}
+
+function setConfig(pollPeriod, daysToKeep) {
+	var config = { 'daysToKeep': daysToKeep	};
+	myService.setConfiguration(config,function(r) {}, function(r) {});
+	restartTimer(pollPeriod);
+}
+
+</script>
+<div id="resultMessage">None yet</div>
+<br /><br />
+<button onclick="restartTimer(1000)">1s</button>
+<button onclick="restartTimer(2000)">2s</button>
+<button onclick="restartTimer(5000)">5s</button>
+<button onclick="restartTimer(10000)">10s</button>
+<br /><br />
+<button onclick="startRecording()">Start Recording</button>
+<button onclick="stopRecording()">Stop Recording</button>
+<br /><br />
+<button onclick="getData()">Get Data</button>
+<button onclick="clearData()">Clear Data</button>
+<br /><br />
+<div id="data"></div>
